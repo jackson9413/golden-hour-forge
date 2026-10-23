@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Golden Hour Forge - photography light &amp; exposure planner</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <div>
+      <h1>Golden Hour Forge</h1>
+      <p class="tag">Plan the light, then the settings. Sunrise, golden hour, blue hour and
+      a ready-to-dial exposure for any date and place on earth - computed locally, no API keys.</p>
+    </div>
+    <div class="topbar-actions">
+      <button id="loadSample" class="btn ghost">Load sample</button>
+      <button id="analyzeBtn" class="btn primary">Build my plan</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap grid">
+  <section class="panel inputs">
+    <h2>1. Where and when</h2>
+    <label>City
+      <select id="city">
+        <option value="">Custom coordinates</option>
+        {% for c in cities %}<option value="{{ c.name }}" data-lat="{{ c.lat }}" data-lon="{{ c.lon }}" data-tz="{{ c.tz }}">{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="row3">
+      <label>Latitude<input type="number" id="lat" step="0.0001" value="41.8781"></label>
+      <label>Longitude<input type="number" id="lon" step="0.0001" value="-87.6298"></label>
+      <label>Timezone<input type="text" id="tz" value="America/Chicago"></label>
+    </div>
+    <div class="row2">
+      <label>Shoot date<input type="date" id="date"></label>
+      <label>Arrive at<input type="time" id="shootTime" value="17:20"></label>
+    </div>
+
+    <h2>2. What you are shooting</h2>
+    <label>Scene
+      <select id="scene">
+        {% for key, s in scenes.items() %}<option value="{{ key }}">{{ s.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Light condition
+      <select id="lightCondition">
+        {% for key, c in conditions.items() %}<option value="{{ key }}">{{ c.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Subject movement
+      <select id="subject">
+        {% for key, m in movements.items() %}<option value="{{ key }}">{{ m.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="row3">
+      <label>Focal length (mm)<input type="number" id="focal" value="50" min="8" max="1200"></label>
+      <label>Crop factor<input type="number" id="crop" value="1.0" step="0.1" min="1"></label>
+      <label>ISO ceiling<input type="number" id="isoMax" value="3200" step="100"></label>
+    </div>
+    <label>Aperture (f-number)
+      <select id="aperture">
+        <option value="">Auto from scene</option>
+        <option value="1.4">f/1.4</option><option value="1.8">f/1.8</option>
+        <option value="2.0">f/2.0</option><option value="2.8">f/2.8</option>
+        <option value="4.0">f/4</option><option value="5.6">f/5.6</option>
+        <option value="8.0">f/8</option><option value="11.0">f/11</option>
+        <option value="16.0">f/16</option>
+      </select>
+    </label>
+
+    <h2>3. What you are carrying</h2>
+    <div class="gear-grid">
+      <label class="check"><input type="checkbox" id="gear_tripod"><span>Tripod</span></label>
+      <label class="check"><input type="checkbox" id="gear_nd"><span>ND filter</span></label>
+      <label class="check"><input type="checkbox" id="gear_flash"><span>Flash</span></label>
+      <label class="check"><input type="checkbox" id="gear_reflector"><span>Reflector</span></label>
+      <label class="check"><input type="checkbox" id="gear_polarizer"><span>Polariser</span></label>
+      <label class="check"><input type="checkbox" id="gear_diffuser"><span>Diffuser</span></label>
+    </div>
+    <label>Notes
+      <textarea id="notes" rows="3" placeholder="Where exactly, who is in the shot, what has to happen."></textarea>
+    </label>
+    <div class="panel-actions">
+      <button id="analyzeBtn2" class="btn primary">Build my plan</button>
+      <button id="saveBtn" class="btn ghost" disabled>Save session</button>
+    </div>
+  </section>
+
+  <section class="results" id="results">
+    <div class="empty" id="emptyState">
+      <h2>Nothing planned yet</h2>
+      <p>Pick a scene, set a date and place, then hit <strong>Build my plan</strong>.
+      You get the exact golden hour and blue hour windows for that day, a ready-to-dial
+      exposure, an aperture ladder, an ND filter table, and the things that will go wrong.</p>
+    </div>
+
+    <div id="plan" class="hidden">
+      <div class="score-header panel">
+        <div class="score-num"><span id="scoreValue">0</span><small>/100</small></div>
+        <div class="score-meta">
+          <div class="verdict" id="verdictPill">-</div>
+          <p id="scoreSummary" class="muted"></p>
+          <div class="axis-pills" id="axisPills"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Sun through the day</h3>
+        <div id="sunChart" class="sun-chart"></div>
+        <div class="legend">
+          <span><i class="sw gold"></i>golden hour</span>
+          <span><i class="sw blue"></i>blue hour</span>
+          <span><i class="sw day"></i>daylight</span>
+          <span><i class="sw night"></i>night</span>
+          <span><i class="sw mark"></i>your time</span>
+        </div>
+        <div id="sunAdvice" class="advice"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Light windows for this day</h3>
+        <table class="grid" id="windowTable"></table>
+      </div>
+
+      <div class="panel">
+        <h3>Settings</h3>
+        <div class="settings" id="settingsGrid"></div>
+        <h4>Exposure notes</h4>
+        <ul class="bullets" id="pitfallList"></ul>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h3>Aperture ladder</h3>
+          <table class="grid" id="ladderTable"></table>
+        </div>
+        <div class="panel">
+          <h3>ND filter table</h3>
+          <table class="grid" id="ndTable"></table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Findings</h3>
+        <div id="flagsList" class="flags"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Shot checklist</h3>
+        <ul class="checklist" id="checklist"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<section class="wrap">
+  <div class="panel history">
+    <h3>Recent plans</h3>
+    <div id="historyList" class="history-list">No saved plans yet.</div>
+  </div>
+</section>
+
+<footer class="wrap foot">
+  <p>Golden Hour Forge - local-first. Solar math is Meeus low-precision (about 0.01 degree
+  accurate); moon phase is an approximation. Everything runs on your machine. No API keys,
+  no accounts, no network calls.</p>
+</footer>
+
+<script>window.BOOT = {{ boot | tojson }};</script>
+<script src="/static/app.js"></script>
+</body>
+</html>
